@@ -1,0 +1,19 @@
+.main {
+    background-color:#0E1117;
+    color:white;
+}
+
+[data-testid="metric-container"]{
+    background-color:#1B1F2B;
+    border-radius:15px;
+    padding:20px;
+    box-shadow:0 0 12px rgba(0,255,255,0.15);
+}
+
+.stDataFrame{
+    border-radius:12px;
+}
+
+h1,h2,h3{
+    color:#00D4FF;
+}
