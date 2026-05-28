@@ -3,6 +3,13 @@ import plotly.express as px
 from analytics import analyze_data
 from recommender import generate_recommendation
 
+# ---------- PAGE CONFIG ----------
+
+st.set_page_config(
+    page_title="AI Interview Intelligence Platform",
+    layout="wide"
+)
+
 # ---------- CSS ----------
 
 with open("style.css") as f:
@@ -11,12 +18,7 @@ with open("style.css") as f:
         unsafe_allow_html=True
     )
 
-# ---------- PAGE CONFIG ----------
-
-st.set_page_config(
-    page_title="AI Interview Intelligence Platform",
-    layout="wide"
-)
+# ---------- TITLE ----------
 
 st.title("🚀 AI Interview Intelligence Platform")
 
@@ -34,23 +36,15 @@ if uploaded_file:
 
     (
         df,
-        avg_score,
-        avg_confidence,
-        category_rank,
-        leaderboard,
-        daily_trend,
-        heatmap
+        _,
+        _,
+        _,
+        _,
+        _,
+        _
     ) = analyze_data("uploaded.csv")
 
     pdf = df.toPandas()
-
-    category_pdf = category_rank.toPandas()
-
-    leaderboard_pdf = leaderboard.toPandas()
-
-    trend_pdf = daily_trend.toPandas()
-
-    heatmap_pdf = heatmap.toPandas()
 
     # ---------- SIDEBAR FILTERS ----------
 
@@ -58,8 +52,8 @@ if uploaded_file:
 
     category_filter = st.sidebar.multiselect(
         "Select Category",
-        options=pdf["Category"].unique(),
-        default=pdf["Category"].unique()
+        options=sorted(pdf["Category"].unique()),
+        default=sorted(pdf["Category"].unique())
     )
 
     experience_filter = st.sidebar.slider(
@@ -76,24 +70,101 @@ if uploaded_file:
         "Search Candidate"
     )
 
-    pdf = pdf[
-        pdf["Category"].isin(category_filter)
+    # ---------- APPLY FILTERS ----------
+
+    filtered_pdf = pdf.copy()
+
+    filtered_pdf = filtered_pdf[
+        filtered_pdf["Category"].isin(category_filter)
     ]
 
-    pdf = pdf[
-        (pdf["Experience"] >= experience_filter[0]) &
-        (pdf["Experience"] <= experience_filter[1])
+    filtered_pdf = filtered_pdf[
+        (
+            filtered_pdf["Experience"] >= experience_filter[0]
+        )
+        &
+        (
+            filtered_pdf["Experience"] <= experience_filter[1]
+        )
     ]
 
     if search_candidate:
 
-        pdf = pdf[
-            pdf["Candidate"].str.contains(
+        filtered_pdf = filtered_pdf[
+            filtered_pdf["Candidate"].str.contains(
                 search_candidate,
                 case=False,
                 na=False
             )
         ]
+
+    # ---------- EMPTY CHECK ----------
+
+    if filtered_pdf.empty:
+
+        st.warning(
+            "No records match current filters."
+        )
+
+        st.stop()
+
+    # ---------- RECALCULATE EVERYTHING ----------
+
+    avg_score = filtered_pdf["Score"].mean()
+
+    avg_confidence = filtered_pdf["Confidence"].mean()
+
+    category_pdf = (
+        filtered_pdf
+        .groupby("Category")["Score"]
+        .mean()
+        .reset_index()
+    )
+
+    category_pdf.columns = [
+        "Category",
+        "Average Score"
+    ]
+
+    leaderboard_pdf = (
+        filtered_pdf
+        .groupby("Candidate")
+        .agg({
+            "Score":"mean",
+            "Confidence":"mean",
+            "Experience":"mean"
+        })
+        .reset_index()
+        .sort_values(
+            by="Score",
+            ascending=False
+        )
+    )
+
+    trend_pdf = (
+        filtered_pdf
+        .groupby("Date")["Score"]
+        .mean()
+        .reset_index()
+    )
+
+    trend_pdf.columns = [
+        "Date",
+        "Daily Avg"
+    ]
+
+    trend_pdf = trend_pdf.sort_values(
+        by="Date"
+    )
+
+    heatmap_pdf = (
+        filtered_pdf
+        .groupby(
+            ["Candidate","Category"]
+        )["Score"]
+        .mean()
+        .reset_index()
+    )
 
     # ---------- AI RECOMMENDATION ----------
 
@@ -104,7 +175,9 @@ if uploaded_file:
 
     # ---------- KPI DASHBOARD ----------
 
-    st.subheader("📊 Executive KPI Dashboard")
+    st.subheader(
+        "📊 Executive KPI Dashboard"
+    )
 
     best_category = category_pdf.sort_values(
         by="Average Score",
@@ -115,7 +188,7 @@ if uploaded_file:
 
     c1.metric(
         "Candidates",
-        len(pdf)
+        len(filtered_pdf)
     )
 
     c2.metric(
@@ -170,7 +243,7 @@ if uploaded_file:
         )
 
         fig2 = px.scatter(
-            pdf,
+            filtered_pdf,
             x="Confidence",
             y="Score",
             color="Category",
@@ -268,7 +341,7 @@ Recommendation:
         "📥 Export Analytics Report"
     )
 
-    csv_data = pdf.to_csv(
+    csv_data = filtered_pdf.to_csv(
         index=False
     )
 
@@ -310,7 +383,7 @@ PySpark Analytics Engine
     )
 
     st.dataframe(
-        pdf,
+        filtered_pdf,
         use_container_width=True
     )
 
